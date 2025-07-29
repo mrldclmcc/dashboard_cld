@@ -632,20 +632,24 @@
             `;
         }
 
-        // Format the datetime string to readable time in Central Time
+        // Format the time from Google Sheets format (1899-12-30T...)
         function formatMeetingTime(timeString) {
             if (!timeString) return 'Time TBD';
             
             try {
+                // Handle the 1899-12-30T... format from Google Sheets
                 const date = new Date(timeString);
                 if (isNaN(date.getTime())) return 'Time TBD';
                 
-                return date.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit',
-                    hour12: true,
-                    timeZone: 'America/Chicago'
-                });
+                // Extract just the time portion (hours and minutes)
+                const hours = date.getUTCHours();
+                const minutes = date.getUTCMinutes();
+                
+                // Format in 12-hour time with AM/PM
+                const period = hours >= 12 ? 'PM' : 'AM';
+                const displayHours = hours % 12 || 12; // Convert 0 to 12 for 12-hour format
+                
+                return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
             } catch (error) {
                 console.error('Error parsing time:', timeString, error);
                 return 'Time TBD';
@@ -658,9 +662,10 @@
             try {
                 const date = new Date(timeString);
                 if (isNaN(date.getTime())) return '';
-                // Format as HH:MM for time input
-                const hours = date.getHours().toString().padStart(2, '0');
-                const minutes = date.getMinutes().toString().padStart(2, '0');
+                
+                // Format as HH:MM for time input using UTC values
+                const hours = date.getUTCHours().toString().padStart(2, '0');
+                const minutes = date.getUTCMinutes().toString().padStart(2, '0');
                 return `${hours}:${minutes}`;
             } catch (error) {
                 console.error('Error extracting time:', timeString, error);
@@ -690,8 +695,7 @@
                 return date.toLocaleDateString('en-US', { 
                     weekday: 'short', 
                     month: 'short', 
-                    day: 'numeric',
-                    timeZone: 'America/Chicago'
+                    day: 'numeric'
                 });
             }
         }
@@ -703,18 +707,8 @@
                 const date = new Date(timeString);
                 if (isNaN(date.getTime())) return 0;
                 
-                // Get time in Central Time
-                const centralHours = date.toLocaleString('en-US', { 
-                    hour: 'numeric', 
-                    hour12: false,
-                    timeZone: 'America/Chicago'
-                });
-                const centralMinutes = date.toLocaleString('en-US', { 
-                    minute: 'numeric',
-                    timeZone: 'America/Chicago'
-                });
-                
-                return parseInt(centralHours) * 60 + parseInt(centralMinutes);
+                // Use UTC hours/minutes directly from the time string
+                return date.getUTCHours() * 60 + date.getUTCMinutes();
             } catch (error) {
                 console.error('Error parsing time for sorting:', timeString, error);
                 return 0;
@@ -779,10 +773,9 @@
                         weekday: 'long', 
                         year: 'numeric', 
                         month: 'long', 
-                        day: 'numeric',
-                        timeZone: 'America/Chicago'
+                        day: 'numeric'
                     })}</p>
-                    <p><strong>Time:</strong> ${formatMeetingTime(meeting['Bid Open Time'])} (Central Time)</p>
+                    <p><strong>Time:</strong> ${formatMeetingTime(meeting['Bid Open Time'])}</p>
                     <p><strong>Location:</strong> ${[meeting['Bid Open Street'], meeting['Bid Open City'], meeting['Bid Open State'], meeting['Bid Open Zip']].filter(Boolean).join(', ')}</p>
                     <p><strong>Description:</strong> ${meeting['Project Description'] || 'No description available'}</p>
                     <p><strong>Bid Info:</strong> ${meeting['Bid Project Info'] || 'No additional info'}</p>
