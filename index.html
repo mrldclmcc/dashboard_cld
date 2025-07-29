@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meeting Manager</title>
+    <title>LMCC Dashboard App</title>
     <style>
         * {
             margin: 0;
@@ -391,7 +391,7 @@
 </head>
 <body>
     <div class="header">
-        Meeting Manager
+        LMCC Dashboard App
     </div>
 
     <div class="container">
@@ -621,6 +621,20 @@
             `;
         }
 
+        // Extract time portion from datetime for form input
+        function extractTimeFromDateTime(timeString) {
+            if (!timeString) return '';
+            try {
+                const date = new Date(timeString);
+                if (isNaN(date.getTime())) return '';
+                // Return in HH:MM format for time input
+                return date.toTimeString().substr(0, 5);
+            } catch (error) {
+                console.error('Error extracting time:', timeString, error);
+                return '';
+            }
+        }
+
         // Format the datetime string to readable time
         function formatMeetingTime(timeString) {
             if (!timeString) return 'Time TBD';
@@ -725,8 +739,14 @@
 
         // Meeting details
         function showMeetingDetails(bidSourceId) {
-            const meeting = allMeetings.find(m => m['BID Source ID'] === bidSourceId);
-            if (!meeting) return;
+            console.log('Looking for meeting with ID:', bidSourceId, 'Type:', typeof bidSourceId);
+            console.log('Available meetings:', allMeetings.map(m => ({ id: m['BID Source ID'], type: typeof m['BID Source ID'] })));
+            const meeting = allMeetings.find(m => String(m['BID Source ID']) === String(bidSourceId));
+            if (!meeting) {
+                console.error('Meeting not found for ID:', bidSourceId);
+                alert('Meeting details not found');
+                return;
+            }
 
             const modal = document.getElementById('meetingDetailsModal');
             const content = document.getElementById('meetingDetailsContent');
@@ -807,17 +827,29 @@
 
         // Add meeting function
         async function addMeeting() {
+            // Convert time input to datetime format if provided
+            const timeInput = document.getElementById('meetingTime').value;
+            let formattedTime = '';
+            if (timeInput) {
+                const [hours, minutes] = timeInput.split(':');
+                const date = new Date('1899-12-30');
+                date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                formattedTime = date.toISOString();
+            }
+
             const meetingData = {
                 'Project Name': document.getElementById('projectName').value,
                 'Bid Open Date': document.getElementById('meetingDate').value,
-                'Bid open time': document.getElementById('meetingTime').value,
+                'Bid Open Time': formattedTime,
                 'Bid Open Street': document.getElementById('streetAddress').value,
                 'Bid Open City': document.getElementById('city').value,
                 'Bid Open State': document.getElementById('state').value,
                 'Bid Open Zip': document.getElementById('zipCode').value,
-                'BID Source ID': document.getElementById('bidSourceId').value,
-                'Project Description': document.getElementById('projectDescription').value
+                'BID Source ID': document.getElementById('bidSourceId').value || String(Date.now()),
+                'Projec Description': document.getElementById('projectDescription').value // Note: matches your sheet's typo
             };
+
+            console.log('Adding meeting with data:', meetingData);
 
             try {
                 const response = await fetch(API_URL, {
@@ -832,6 +864,8 @@
                 });
 
                 const result = await response.json();
+                console.log('Add meeting response:', result);
+                
                 if (result.status === 'success') {
                     alert('Meeting added successfully!');
                     closeModal('addMeetingModal');
@@ -847,8 +881,11 @@
 
         // Edit meeting function
         function editMeeting(bidSourceId) {
-            const meeting = allMeetings.find(m => m['BID Source ID'] === bidSourceId);
-            if (!meeting) return;
+            const meeting = allMeetings.find(m => String(m['BID Source ID']) === String(bidSourceId));
+            if (!meeting) {
+                console.error('Meeting not found for editing ID:', bidSourceId);
+                return;
+            }
 
             closeModal('meetingDetailsModal');
             
@@ -866,7 +903,7 @@
                 </div>
                 <div class="form-group">
                     <label>Meeting Time:</label>
-                    <input type="time" id="editMeetingTime" value="${meeting['Bid open time'] || ''}">
+                    <input type="time" id="editMeetingTime" value="${extractTimeFromDateTime(meeting['Bid Open Time'])}">
                 </div>
                 <div class="form-group">
                     <label>Street Address:</label>
@@ -886,7 +923,7 @@
                 </div>
                 <div class="form-group">
                     <label>Project Description:</label>
-                    <textarea id="editProjectDescription" rows="3">${meeting['Project Description'] || ''}</textarea>
+                    <textarea id="editProjectDescription" rows="3">${meeting['Projec Description'] || meeting['Project Description'] || ''}</textarea>
                 </div>
                 <button class="submit-button" onclick="updateMeeting('${bidSourceId}')">Update Meeting</button>
             `;
@@ -896,16 +933,27 @@
 
         // Update meeting function
         async function updateMeeting(bidSourceId) {
+            // Convert time input back to the datetime format expected by Google Sheets
+            const timeInput = document.getElementById('editMeetingTime').value;
+            let formattedTime = '';
+            if (timeInput) {
+                // Convert HH:MM to the datetime format Google Sheets expects
+                const [hours, minutes] = timeInput.split(':');
+                const date = new Date('1899-12-30');
+                date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                formattedTime = date.toISOString();
+            }
+
             const meetingData = {
-                'BID Source ID': bidSourceId,
+                'BID Source ID': String(bidSourceId),
                 'Project Name': document.getElementById('editProjectName').value,
                 'Bid Open Date': document.getElementById('editMeetingDate').value,
-                'Bid open time': document.getElementById('editMeetingTime').value,
+                'Bid Open Time': formattedTime,
                 'Bid Open Street': document.getElementById('editStreetAddress').value,
                 'Bid Open City': document.getElementById('editCity').value,
                 'Bid Open State': document.getElementById('editState').value,
                 'Bid Open Zip': document.getElementById('editZipCode').value,
-                'Project Description': document.getElementById('editProjectDescription').value
+                'Projec Description': document.getElementById('editProjectDescription').value
             };
 
             try {
@@ -964,76 +1012,214 @@
         }
 
         function processICSFile(icsData) {
-            // Basic ICS parsing - extract DTSTART, DTEND, SUMMARY, LOCATION
-            const lines = icsData.split('\n');
+            console.log('Processing ICS file:', icsData);
+            const lines = icsData.split(/\r?\n/);
             let currentEvent = {};
             let events = [];
+            let currentProperty = '';
+            let currentValue = '';
 
-            for (let line of lines) {
-                line = line.trim();
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i].trim();
+                
+                // Handle line continuation (lines starting with space or tab)
+                if (line.startsWith(' ') || line.startsWith('\t')) {
+                    currentValue += line.substring(1);
+                    continue;
+                }
+                
+                // Process previous property if we have one
+                if (currentProperty && currentValue) {
+                    processICSProperty(currentEvent, currentProperty, currentValue);
+                }
+                
                 if (line === 'BEGIN:VEVENT') {
                     currentEvent = {};
+                    currentProperty = '';
+                    currentValue = '';
                 } else if (line === 'END:VEVENT') {
-                    events.push(currentEvent);
-                } else if (line.startsWith('DTSTART')) {
-                    const dateMatch = line.match(/(\d{8}T?\d{0,6})/);
-                    if (dateMatch) {
-                        const dateStr = dateMatch[1];
-                        const year = dateStr.substr(0, 4);
-                        const month = dateStr.substr(4, 2);
-                        const day = dateStr.substr(6, 2);
-                        currentEvent.date = `${year}-${month}-${day}`;
-                        
-                        if (dateStr.length > 8) {
-                            const hour = dateStr.substr(9, 2);
-                            const minute = dateStr.substr(11, 2);
-                            currentEvent.time = `${hour}:${minute}`;
-                        }
+                    if (Object.keys(currentEvent).length > 0) {
+                        events.push(currentEvent);
                     }
-                } else if (line.startsWith('SUMMARY:')) {
-                    currentEvent.summary = line.replace('SUMMARY:', '');
-                } else if (line.startsWith('LOCATION:')) {
-                    currentEvent.location = line.replace('LOCATION:', '');
+                    currentProperty = '';
+                    currentValue = '';
+                } else if (line.includes(':')) {
+                    const colonIndex = line.indexOf(':');
+                    currentProperty = line.substring(0, colonIndex);
+                    currentValue = line.substring(colonIndex + 1);
                 }
             }
 
-            // Add events to meetings
-            addEventsFromUpload(events);
+            console.log('Parsed ICS events:', events);
+            addEventsFromUpload(events.map(event => convertICSToMeetingData(event)));
+        }
+
+        function processICSProperty(event, property, value) {
+            if (property.startsWith('DTSTART')) {
+                // Parse YYYYMMDDTHHMMSS format
+                const dateStr = value.replace(/[^\d]/g, '');
+                if (dateStr.length >= 8) {
+                    const year = dateStr.substr(0, 4);
+                    const month = dateStr.substr(4, 2);
+                    const day = dateStr.substr(6, 2);
+                    event.date = `${month}/${day}/${year}`; // Match your JSON format
+                    
+                    if (dateStr.length >= 14) {
+                        const hour = dateStr.substr(8, 2);
+                        const minute = dateStr.substr(10, 2);
+                        // Convert to datetime format like your JSON
+                        const datetime = new Date(`1899-12-30T${hour}:${minute}:00.000Z`);
+                        event.time = datetime.toISOString();
+                    }
+                }
+            } else if (property === 'SUMMARY') {
+                event.summary = value;
+                // Extract Project ID from summary like "(Project ID 5849512)"
+                const projectIdMatch = value.match(/\(Project ID (\d+)\)/);
+                if (projectIdMatch) {
+                    event.projectId = projectIdMatch[1];
+                    event.projectName = value.replace(/\s*\(Project ID \d+\)\s*$/, '').trim();
+                } else {
+                    event.projectName = value;
+                }
+            } else if (property === 'LOCATION') {
+                event.location = value;
+                // Parse address: "1350 W Hawley St, Mundelein IL. 60060"
+                const addressParts = value.split(',').map(part => part.trim());
+                event.street = addressParts[0] || '';
+                
+                if (addressParts[1]) {
+                    // Parse "Mundelein IL. 60060"
+                    const cityStateZip = addressParts[1];
+                    const zipMatch = cityStateZip.match(/(\d{5}(-\d{4})?)$/);
+                    if (zipMatch) {
+                        event.zip = zipMatch[1];
+                        const beforeZip = cityStateZip.replace(/\s*\d{5}(-\d{4})?\s*$/, '').trim();
+                        const stateMatch = beforeZip.match(/\b([A-Z]{2}\.?)\s*$/);
+                        if (stateMatch) {
+                            event.state = stateMatch[1];
+                            event.city = beforeZip.replace(/\s*[A-Z]{2}\.?\s*$/, '').trim();
+                        } else {
+                            event.city = beforeZip;
+                        }
+                    } else {
+                        event.city = cityStateZip;
+                    }
+                }
+            } else if (property === 'DESCRIPTION') {
+                event.description = value.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
+                
+                // Extract Bid Project Info
+                const bidInfoMatch = event.description.match(/Bid Project Info:\s*([^\\n]*(?:\\n[^\\n]*)*?)(?=\\n[A-Z][^:]*:|$)/);
+                if (bidInfoMatch) {
+                    event.bidProjectInfo = bidInfoMatch[1].replace(/\\n/g, ' ').trim();
+                }
+                
+                // Extract Public Body
+                const publicBodyMatch = event.description.match(/Public Body:\s*([^\\n]*)/);
+                if (publicBodyMatch) {
+                    event.publicBody = publicBodyMatch[1].trim();
+                }
+            }
+        }
+
+        function convertICSToMeetingData(icsEvent) {
+            return {
+                'Project Name': icsEvent.projectName || 'Imported Meeting',
+                'Bid Open Date': icsEvent.date || '',
+                'Bid Open Time': icsEvent.time || '',
+                'Bid Open Street': icsEvent.street || '',
+                'Bid Open City': icsEvent.city || '',
+                'Bid Open State': icsEvent.state || '',
+                'Bid Open Zip': icsEvent.zip || '',
+                'BID Source ID': icsEvent.projectId || String(Date.now()),
+                'Projec Description': icsEvent.description || '', // Note: typo in your sheet
+                'Bid Project Info': icsEvent.bidProjectInfo || '',
+                'Public Body': icsEvent.publicBody || ''
+            };
         }
 
         function processCSVFile(csvData) {
+            console.log('Processing CSV file:', csvData);
             const lines = csvData.split('\n');
-            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            if (lines.length < 2) {
+                alert('CSV file appears to be empty or invalid');
+                return;
+            }
+            
+            // Parse CSV properly handling quoted values
+            const parseCSVLine = (line) => {
+                const result = [];
+                let current = '';
+                let inQuotes = false;
+                
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        result.push(current.trim());
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                result.push(current.trim());
+                return result;
+            };
+            
+            const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, ''));
             const events = [];
 
             for (let i = 1; i < lines.length; i++) {
-                if (!lines[i].trim()) continue;
-                const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+                const line = lines[i].trim();
+                if (!line) continue;
+                
+                const values = parseCSVLine(line).map(v => v.replace(/"/g, ''));
                 const event = {};
+                
                 headers.forEach((header, index) => {
                     event[header] = values[index] || '';
                 });
-                events.push(event);
+                
+                // Only add if we have essential data
+                if (event['Bid Open Date'] || event['Project Name']) {
+                    events.push(event);
+                }
             }
 
+            console.log('Parsed CSV events:', events);
+            if (events.length === 0) {
+                alert('No valid meeting data found in CSV file');
+                return;
+            }
+            
             addEventsFromUpload(events);
         }
 
         async function addEventsFromUpload(events) {
+            console.log('Adding events from upload:', events);
             let successCount = 0;
+            let errorCount = 0;
+            
             for (let event of events) {
                 try {
+                    // Ensure required data format matches your JSON structure
                     const meetingData = {
-                        'Project Name': event.summary || event['Project Name'] || 'Imported Meeting',
-                        'Bid Open Date': event.date || event['Bid Open Date'] || '',
-                        'Bid open time': event.time || event['Bid open time'] || '',
-                        'Bid Open Street': event.location || event['Bid Open Street'] || '',
-                        'Bid Open City': event['Bid Open City'] || '',
-                        'Bid Open State': event['Bid Open State'] || '',
-                        'Bid Open Zip': event['Bid Open Zip'] || '',
-                        'BID Source ID': event['BID Source ID'] || Date.now().toString(),
-                        'Project Description': event['Project Description'] || ''
+                        'Project Name': event['Project Name'] || event.summary || event.projectName || 'Imported Meeting',
+                        'Bid Open Date': event['Bid Open Date'] || event.date || '',
+                        'Bid Open Time': event['Bid Open Time'] || event.time || '',
+                        'Bid Open Street': event['Bid Open Street'] || event.location || event.street || '',
+                        'Bid Open City': event['Bid Open City'] || event.city || '',
+                        'Bid Open State': event['Bid Open State'] || event.state || '',
+                        'Bid Open Zip': event['Bid Open Zip'] || event.zip || '',
+                        'BID Source ID': event['BID Source ID'] || event.projectId || String(Date.now() + Math.random()),
+                        'Projec Description': event['Projec Description'] || event['Project Description'] || event.description || '',
+                        'Bid Project Info': event['Bid Project Info'] || event.bidProjectInfo || '',
+                        'Public Body': event['Public Body'] || event.publicBody || ''
                     };
+
+                    console.log('Uploading meeting data:', meetingData);
 
                     const response = await fetch(API_URL, {
                         method: 'POST',
@@ -1047,17 +1233,27 @@
                     });
 
                     const result = await response.json();
+                    console.log('Upload response for meeting:', result);
+                    
                     if (result.status === 'success') {
                         successCount++;
+                    } else {
+                        console.error('Failed to add meeting:', result.message);
+                        errorCount++;
                     }
                 } catch (error) {
                     console.error('Error adding event:', error);
+                    errorCount++;
                 }
             }
 
-            alert(`Successfully imported ${successCount} meetings!`);
-            closeModal('addMeetingModal');
-            loadMeetings();
+            if (successCount > 0) {
+                alert(`Successfully imported ${successCount} meetings!${errorCount > 0 ? ` (${errorCount} failed)` : ''}`);
+                closeModal('addMeetingModal');
+                loadMeetings();
+            } else {
+                alert('Failed to import any meetings. Please check the file format and try again.');
+            }
         }
 
         // Week view functionality
@@ -1146,13 +1342,13 @@
 
         // Address update function
         async function updateMeetingAddress(bidSourceId, newAddress) {
-            const meeting = allMeetings.find(m => m['BID Source ID'] === bidSourceId);
+            const meeting = allMeetings.find(m => String(m['BID Source ID']) === String(bidSourceId));
             if (!meeting) return;
 
             // Parse address components (basic parsing)
             const addressParts = newAddress.split(',').map(part => part.trim());
             const meetingData = {
-                'BID Source ID': bidSourceId,
+                'BID Source ID': String(bidSourceId),
                 'Bid Open Street': addressParts[0] || '',
                 'Bid Open City': addressParts[1] || meeting['Bid Open City'],
                 'Bid Open State': addressParts[2] || meeting['Bid Open State'],
