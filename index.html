@@ -535,7 +535,8 @@
             try {
                 const response = await fetch(`${API_URL}?action=getMeetings`);
                 const data = await response.json();
-                allMeetings = data.filter(meeting => meeting['Bid Open Date'] && meeting['Bid open time']);
+                console.log('Raw API response:', data); // Debug log
+                allMeetings = data.filter(meeting => meeting['Bid Open Date'] && meeting['Bid Open Time']);
                 filteredMeetings = [...allMeetings];
                 displayMeetings();
             } catch (error) {
@@ -577,7 +578,9 @@
         function createMeetingCard(meeting) {
             const meetingDate = new Date(meeting['Bid Open Date']);
             const dateDisplay = getDateDisplay(meetingDate);
-            const time = meeting['Bid open time'] || 'Time TBD';
+            
+            // Parse the datetime format to get readable time
+            const time = formatMeetingTime(meeting['Bid Open Time']);
             const city = meeting['Bid Open City'] || 'Location TBD';
             const state = meeting['Bid Open State'] || '';
             const location = city + (state ? `, ${state}` : '');
@@ -618,6 +621,27 @@
             `;
         }
 
+        // Format the datetime string to readable time
+        function formatMeetingTime(timeString) {
+            if (!timeString) return 'Time TBD';
+            
+            try {
+                // Handle the ISO datetime format from Google Sheets
+                const date = new Date(timeString);
+                if (isNaN(date.getTime())) return 'Time TBD';
+                
+                // Convert to local time and format
+                return date.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit',
+                    hour12: true 
+                });
+            } catch (error) {
+                console.error('Error parsing time:', timeString, error);
+                return 'Time TBD';
+            }
+        }
+
         // Utility functions
         function formatDateForComparison(date) {
             return date.toISOString().split('T')[0];
@@ -645,13 +669,19 @@
             }
         }
 
-        function convertTimeToMinutes(timeStr) {
-            if (!timeStr) return 0;
-            const [time, period] = timeStr.split(' ');
-            let [hours, minutes] = time.split(':').map(Number);
-            if (period && period.toLowerCase() === 'pm' && hours !== 12) hours += 12;
-            if (period && period.toLowerCase() === 'am' && hours === 12) hours = 0;
-            return hours * 60 + (minutes || 0);
+        function convertTimeToMinutes(timeString) {
+            if (!timeString) return 0;
+            
+            try {
+                // Handle the ISO datetime format from Google Sheets
+                const date = new Date(timeString);
+                if (isNaN(date.getTime())) return 0;
+                
+                return date.getHours() * 60 + date.getMinutes();
+            } catch (error) {
+                console.error('Error parsing time for sorting:', timeString, error);
+                return 0;
+            }
         }
 
         // Navigation functions
