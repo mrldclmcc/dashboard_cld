@@ -431,10 +431,10 @@
             <div class="form-group">
                 <label>Add Method:</label>
                 <select id="addMethod" onchange="toggleAddMethod()">
-                    <option value="manual">Manual Entry</option>
-                    <option value="ics">Upload ICS File</option>
-                    <option value="csv">Upload CSV/Excel</option>
-                </select>
+				<option value="ics" selected>Upload ICS File</option>
+				<option value="manual">Manual Entry</option>
+				<option value="csv">Upload CSV/Excel</option>
+</select>
             </div>
 
             <div id="manualForm">
@@ -517,7 +517,7 @@
         let isSearchMode = false;
         let uploadedFileData = null;
 
-        const API_URL = 'https://script.google.com/macros/s/AKfycbwLO9Z7IEWbSNn0t87MUoSrEibjC8CtLiZ6xlHfEuPL1zoN07emOeZ8_KuWeoKrM9Se/exec';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbyhTqOf9YkjFZDAUe9FRA4nozdnSG8_tge4cXIC_eGLnB5zKYCOD202r7OuDMstLPPw4w/exec';
 
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
@@ -628,25 +628,10 @@
             `;
         }
 
-        // Format the datetime string to readable time in Central Time
-        function formatMeetingTime(timeString) {
-            if (!timeString) return 'Time TBD';
-
-            try {
-                const date = new Date(timeString);
-                if (isNaN(date.getTime())) return 'Time TBD';
-
-                return date.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit',
-                    hour12: true,
-                    timeZone: 'America/Chicago'
-                });
-            } catch (error) {
-                console.error('Error parsing time:', timeString, error);
-                return 'Time TBD';
-            }
-        }
+// Format the time string to readable time (no math no parsing)
+function formatMeetingTime(timeString) {
+  return timeString || 'Time TBD';
+}
 
         // Extract time portion from datetime for form input
         function extractTimeFromDateTime(timeString) {
@@ -696,30 +681,17 @@
             }
         }
 
-        function convertTimeToMinutes(timeString) {
-            if (!timeString) return 0;
-            
-            try {
-                const date = new Date(timeString);
-                if (isNaN(date.getTime())) return 0;
-                
-                // Get time in Central Time
-                const centralHours = date.toLocaleString('en-US', { 
-                    hour: 'numeric', 
-                    hour12: false,
-                    timeZone: 'America/Chicago'
-                });
-                const centralMinutes = date.toLocaleString('en-US', { 
-                    minute: 'numeric',
-                    timeZone: 'America/Chicago'
-                });
-                
-                return parseInt(centralHours) * 60 + parseInt(centralMinutes);
-            } catch (error) {
-                console.error('Error parsing time for sorting:', timeString, error);
-                return 0;
-            }
-        }
+function convertTimeToMinutes(timeString) {
+  if (!timeString) return 0;
+  const match = timeString.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return 0;
+  let h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  const ap = match[3].toUpperCase();
+  if (ap === 'PM' && h !== 12) h += 12;
+  if (ap === 'AM' && h === 12) h = 0;
+  return h * 60 + m;
+}
 
         // Navigation functions
         function changeDate(days) {
@@ -836,6 +808,7 @@
             document.getElementById('addMeetingModal').style.display = 'block';
             // Set default date to current date
             document.getElementById('meetingDate').value = formatDateForComparison(currentDate);
+			toggleAddMethod();          // show the ICS form by default
         }
 
         function toggleAddMethod() {
@@ -1147,69 +1120,49 @@
             return meetings;
         }
 
-        // Parse individual ICS event
-        function parseICSEvent(eventContent) {
-            const lines = eventContent.split('\n').map(line => line.trim()).filter(line => line);
-            const eventData = {};
-            
-            // Parse each line
-            for (const line of lines) {
-                if (line.startsWith('DTSTART:')) {
-                    eventData.dtstart = line.substring(8);
-                } else if (line.startsWith('SUMMARY:')) {
-                    eventData.summary = line.substring(8);
-                } else if (line.startsWith('LOCATION:')) {
-                    eventData.location = line.substring(9);
-                }
-            }
-            
-            // Extract required fields
-            if (!eventData.dtstart || !eventData.summary) {
-                console.warn('Missing required fields in ICS event');
-                return null;
-            }
-            
-            // Parse DTSTART (format: 20250731T110100)
-            const dateTimeMatch = eventData.dtstart.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/);
-            if (!dateTimeMatch) {
-                console.warn('Invalid DTSTART format:', eventData.dtstart);
-                return null;
-            }
-            
-            const [, year, month, day, hour, minute, second] = dateTimeMatch;
-            
-            // Create date for Bid Open Date (YYYY-MM-DD format)
-            const bidOpenDate = `${year}-${month}-${day}`;
-            
-            // Create time in the 1899-based format used by the system
-            const timeDate = new Date('1899-12-30');
-            timeDate.setHours(parseInt(hour), parseInt(minute), parseInt(second), 0);
-            const bidOpenTime = timeDate.toISOString();
-            
-            // Extract BID Source ID from SUMMARY (look for "Project ID XXXXXX")
-            const bidSourceIdMatch = eventData.summary.match(/Project ID (\d+)/);
-            const bidSourceId = bidSourceIdMatch ? bidSourceIdMatch[1] : String(Date.now());
-            
-            // Parse location
-            const locationData = parseLocation(eventData.location || '');
-            
-            // Extract project name from summary (everything before "Project ID")
-            const projectNameMatch = eventData.summary.match(/^(.+?)\s*\(Project ID/);
-            const projectName = projectNameMatch ? projectNameMatch[1].trim() : eventData.summary;
-            
-            return {
-                'BID Source ID': bidSourceId,
-                'Project Name': projectName,
-                'Bid Open Date': bidOpenDate,
-                'Bid Open Time': bidOpenTime,
-                'Bid Open Street': locationData.street,
-                'Bid Open City': locationData.city,
-                'Bid Open State': locationData.state,
-                'Bid Open Zip': locationData.zip,
-                'Project Description': '',
-                'Bid Project Info': eventData.summary
-            };
-        }
+function parseICSEvent(eventContent) {
+  const lines = eventContent.split('\n').map(l => l.trim()).filter(l => l);
+
+  // quick lookup object
+  const map = {};
+  lines.forEach(l => {
+    const [key, ...rest] = l.split(':');
+    map[key] = rest.join(':');
+  });
+
+  const dt = map['DTSTART'];
+  const summary = map['SUMMARY'] || '';
+  const loc = map['LOCATION'] || '';
+
+  if (!dt || !summary) return null;               // required fields
+
+  // dt format: 20250813T100000  → 2025-08-13 & 10:00 AM
+  const [, yyyy, mm, dd, hh, min] = dt.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})\d{2}$/) || [];
+  if (!yyyy) return null;
+
+  // extract project-id from SUMMARY
+  const idMatch = summary.match(/Project ID (\d+)/);
+  const bidSourceId = idMatch ? idMatch[1] : String(Date.now());
+
+  // split LOCATION into parts
+  const [street = '', cityStateZip = ''] = loc.split(',').map(s => s.trim());
+  const cityMatch = cityStateZip.match(/^([A-Za-z\s]+)\s*([A-Z]{2})\.?\s*(\d{5})?$/i);
+  const city  = cityMatch ? cityMatch[1].trim() : '';
+  const state = cityMatch ? cityMatch[2].toUpperCase() : '';
+  const zip   = cityMatch ? cityMatch[3] : '';
+
+  return {
+    'BID Source ID': bidSourceId,
+    'Project Name': summary.replace(/\(Project ID \d+\)/i, '').trim(),
+    'Bid Open Date': `${yyyy}-${mm}-${dd}`,
+    'Bid Open Time': `${Number(hh) % 12 || 12}:${String(min).padStart(2, '0')} ${hh >= 12 ? 'PM' : 'AM'}`,
+    'Bid Open Street': street,
+    'Bid Open City': city,
+    'Bid Open State': state,
+    'Bid Open Zip': zip,
+    'Project Description': map['DESCRIPTION'] || ''
+  };
+}
 
         // Parse location string into components
         function parseLocation(locationString) {
@@ -1471,6 +1424,8 @@
                     break;
             }
         });
-    </script>
+
+
+</script>
 </body>
 </html>
