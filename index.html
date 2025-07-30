@@ -570,7 +570,8 @@
             modal.style.display = 'block';
         }
 
-        function updateMeeting(bidSourceId) {
+        // --- FULL API INTEGRATION FOR UPDATE ---
+        async function updateMeeting(bidSourceId) {
             const idx = allMeetings.findIndex(m => String(m['BID Source ID']) === String(bidSourceId));
             if (idx === -1) {
                 alert("Meeting not found!");
@@ -587,11 +588,22 @@
                 'Bid Open Zip': document.getElementById('editZipCode').value,
                 'Project Description': document.getElementById('editProjectDescription').value
             };
-            allMeetings[idx] = updatedMeeting;
-            filteredMeetings = [...allMeetings];
-            closeModal('editMeetingModal');
-            displayMeetings();
-            alert("Meeting updated locally. (If you want to persist this, implement backend update logic.)");
+            try {
+                const response = await fetch(`${API_URL}?action=updateMeeting`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatedMeeting)
+                });
+                if (!response.ok) throw new Error(await response.text());
+                // Update local data
+                allMeetings[idx] = updatedMeeting;
+                filteredMeetings = [...allMeetings];
+                closeModal('editMeetingModal');
+                displayMeetings();
+                alert("Meeting updated!");
+            } catch (error) {
+                alert("Failed to update meeting: " + error.message);
+            }
         }
 
         // --- Placeholders for Add Meeting and Address Update ---
