@@ -420,14 +420,12 @@
         </div>
     </div>
 
-    <!-- FABs -->
     <button class="fab add-fab" onclick="showAddMeetingModal()">+</button>
     <button class="fab search-fab" onclick="toggleSearch()">🔍</button>
 
-    <!-- Add Meeting Modal -->
     <div class="modal" id="addMeetingModal">
         <div class="modal-content">
-            <button class="close-modal" onclick="closeModal('addMeetingModal')">&times;</button>
+            <button class="close-modal" onclick="closeModal('addMeetingModal')">×</button>
             <div class="modal-header">Add New Meeting</div>
             
             <div class="form-group">
@@ -494,19 +492,17 @@
         </div>
     </div>
 
-    <!-- Meeting Details Modal -->
     <div class="modal" id="meetingDetailsModal">
         <div class="modal-content">
-            <button class="close-modal" onclick="closeModal('meetingDetailsModal')">&times;</button>
+            <button class="close-modal" onclick="closeModal('meetingDetailsModal')">×</button>
             <div class="modal-header">Meeting Details</div>
             <div id="meetingDetailsContent"></div>
         </div>
     </div>
 
-    <!-- Edit Meeting Modal -->
     <div class="modal" id="editMeetingModal">
         <div class="modal-content">
-            <button class="close-modal" onclick="closeModal('editMeetingModal')">&times;</button>
+            <button class="close-modal" onclick="closeModal('editMeetingModal')">×</button>
             <div class="modal-header">Edit Meeting</div>
             <div id="editMeetingForm"></div>
         </div>
@@ -521,7 +517,7 @@
         let isSearchMode = false;
         let uploadedFileData = null;
 
-        const API_URL = 'https://script.google.com/macros/s/AKfycbxsDiIOdpBet83-v8b9fEb63l8cJyYlQQu-EjD2PjJNHPYrCGxw3bvgkHhUh0vhpwOtYQ/exec';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzj-ZNnxGaz7Ks65gUEqZxZVowPhgMkpTKIKxDhe4amQgney-n0hjBYtxd_eXBUQCLwhA/exec';
 
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
@@ -889,7 +885,7 @@
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'text/plain',
                     },
                     body: JSON.stringify({
                         action: 'addMeeting',
@@ -1001,7 +997,7 @@
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'text/plain',
                     },
                     body: JSON.stringify({
                         action: 'updateMeeting',
@@ -1136,7 +1132,7 @@
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'text/plain',
                     },
                     body: JSON.stringify({
                         action: 'updateMeeting',
