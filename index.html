@@ -629,24 +629,24 @@
         }
 
         // Format the datetime string to readable time in Central Time
-        function formatMeetingTime(timeString) {
-            if (!timeString) return 'Time TBD';
-            
-            try {
-                const date = new Date(timeString);
-                if (isNaN(date.getTime())) return 'Time TBD';
-                
-                return date.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit',
-                    hour12: true,
-                    timeZone: 'America/Chicago'
-                });
-            } catch (error) {
-                console.error('Error parsing time:', timeString, error);
-                return 'Time TBD';
-            }
-        }
+function formatMeetingTime(timeString) {
+  if (!timeString) return 'Time TBD';
+
+  try {
+    const date = new Date(timeString);
+    if (isNaN(date.getTime())) return 'Time TBD';
+
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'America/Chicago'
+    });
+  } catch (error) {
+    console.error('Error parsing time:', timeString, error);
+    return 'Time TBD';
+  }
+}
 
         // Extract time portion from datetime for form input
         function extractTimeFromDateTime(timeString) {
@@ -670,27 +670,31 @@
         }
 
         function getDateDisplay(date) {
-            const today = new Date();
-            const tomorrow = new Date(today);
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            const yesterday = new Date(today);
-            yesterday.setDate(yesterday.getDate() - 1);
+  const today = new Date();
+  // Adjust 'today' to Chicago time for comparison
+  const options = { timeZone: 'America/Chicago' };
+  const todayChicago = new Date(today.toLocaleString('en-US', options));
+  const dateChicago = new Date(date.toLocaleString('en-US', options));
 
-            if (formatDateForComparison(date) === formatDateForComparison(today)) {
-                return 'Today';
-            } else if (formatDateForComparison(date) === formatDateForComparison(tomorrow)) {
-                return 'Tomorrow';
-            } else if (formatDateForComparison(date) === formatDateForComparison(yesterday)) {
-                return 'Yesterday';
-            } else {
-                return date.toLocaleDateString('en-US', { 
-                    weekday: 'short', 
-                    month: 'short', 
-                    day: 'numeric',
-                    timeZone: 'America/Chicago'
-                });
-            }
-        }
+  const tomorrow = new Date(todayChicago);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const yesterday = new Date(todayChicago);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (formatDateForComparison(dateChicago) === formatDateForComparison(todayChicago)) {
+    return 'Today';
+  } else if (formatDateForComparison(dateChicago) === formatDateForComparison(tomorrow)) {
+    return 'Tomorrow';
+  } else if (formatDateForComparison(dateChicago) === formatDateForComparison(yesterday)) {
+    return 'Yesterday';
+  } else {
+    return dateChicago.toLocaleDateString('en-US', { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric'
+    });
+  }
+}
 
         function convertTimeToMinutes(timeString) {
             if (!timeString) return 0;
