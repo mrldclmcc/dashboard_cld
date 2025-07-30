@@ -629,24 +629,24 @@
         }
 
         // Format the datetime string to readable time in Central Time
-function formatMeetingTime(timeString) {
-  if (!timeString) return 'Time TBD';
+        function formatMeetingTime(timeString) {
+            if (!timeString) return 'Time TBD';
 
-  try {
-    const date = new Date(timeString);
-    if (isNaN(date.getTime())) return 'Time TBD';
+            try {
+                const date = new Date(timeString);
+                if (isNaN(date.getTime())) return 'Time TBD';
 
-    return date.toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'America/Chicago'
-    });
-  } catch (error) {
-    console.error('Error parsing time:', timeString, error);
-    return 'Time TBD';
-  }
-}
+                return date.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit',
+                    hour12: true,
+                    timeZone: 'America/Chicago'
+                });
+            } catch (error) {
+                console.error('Error parsing time:', timeString, error);
+                return 'Time TBD';
+            }
+        }
 
         // Extract time portion from datetime for form input
         function extractTimeFromDateTime(timeString) {
@@ -670,31 +670,31 @@ function formatMeetingTime(timeString) {
         }
 
         function getDateDisplay(date) {
-  const today = new Date();
-  // Adjust 'today' to Chicago time for comparison
-  const options = { timeZone: 'America/Chicago' };
-  const todayChicago = new Date(today.toLocaleString('en-US', options));
-  const dateChicago = new Date(date.toLocaleString('en-US', options));
+            const today = new Date();
+            // Adjust 'today' to Chicago time for comparison
+            const options = { timeZone: 'America/Chicago' };
+            const todayChicago = new Date(today.toLocaleString('en-US', options));
+            const dateChicago = new Date(date.toLocaleString('en-US', options));
 
-  const tomorrow = new Date(todayChicago);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const yesterday = new Date(todayChicago);
-  yesterday.setDate(yesterday.getDate() - 1);
+            const tomorrow = new Date(todayChicago);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const yesterday = new Date(todayChicago);
+            yesterday.setDate(yesterday.getDate() - 1);
 
-  if (formatDateForComparison(dateChicago) === formatDateForComparison(todayChicago)) {
-    return 'Today';
-  } else if (formatDateForComparison(dateChicago) === formatDateForComparison(tomorrow)) {
-    return 'Tomorrow';
-  } else if (formatDateForComparison(dateChicago) === formatDateForComparison(yesterday)) {
-    return 'Yesterday';
-  } else {
-    return dateChicago.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric'
-    });
-  }
-}
+            if (formatDateForComparison(dateChicago) === formatDateForComparison(todayChicago)) {
+                return 'Today';
+            } else if (formatDateForComparison(dateChicago) === formatDateForComparison(tomorrow)) {
+                return 'Tomorrow';
+            } else if (formatDateForComparison(dateChicago) === formatDateForComparison(yesterday)) {
+                return 'Yesterday';
+            } else {
+                return dateChicago.toLocaleDateString('en-US', { 
+                    weekday: 'short', 
+                    month: 'short', 
+                    day: 'numeric'
+                });
+            }
+        }
 
         function convertTimeToMinutes(timeString) {
             if (!timeString) return 0;
@@ -1023,14 +1023,256 @@ function formatMeetingTime(timeString) {
             }
         }
 
-        // File upload handling (placeholder for future implementation)
-        function handleFileUpload(input) {
-            alert('File upload functionality is currently disabled');
-            document.getElementById('processUploadBtn').style.display = 'none';
+        // REPLACED FUNCTION: File upload handling with ICS support
+        async function handleFileUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const processUploadBtn = document.getElementById('processUploadBtn');
+            
+            if (file.name.toLowerCase().endsWith('.ics')) {
+                try {
+                    const fileContent = await readFileAsText(file);
+                    uploadedFileData = parseICSFile(fileContent);
+                    
+                    if (uploadedFileData && uploadedFileData.length > 0) {
+                        processUploadBtn.style.display = 'block';
+                        processUploadBtn.textContent = `Process ${uploadedFileData.length} Meeting(s)`;
+                    } else {
+                        alert('No valid meetings found in ICS file');
+                        processUploadBtn.style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('Error reading ICS file:', error);
+                    alert('Error reading ICS file. Please try again.');
+                    processUploadBtn.style.display = 'none';
+                }
+            } else if (file.name.toLowerCase().endsWith('.csv') || 
+                       file.name.toLowerCase().endsWith('.xlsx') || 
+                       file.name.toLowerCase().endsWith('.xls')) {
+                alert('CSV and Excel upload functionality is currently disabled');
+                processUploadBtn.style.display = 'none';
+            } else {
+                alert('Please select a valid ICS, CSV, or Excel file');
+                processUploadBtn.style.display = 'none';
+            }
         }
 
-        function processUpload() {
-            alert('File upload functionality is currently disabled');
+        // REPLACED FUNCTION: Process uploaded file data
+        async function processUpload() {
+            if (!uploadedFileData || uploadedFileData.length === 0) {
+                alert('No data to process');
+                return;
+            }
+            
+            const processBtn = document.getElementById('processUploadBtn');
+            const originalText = processBtn.textContent;
+            processBtn.textContent = 'Processing...';
+            processBtn.disabled = true;
+            
+            let successCount = 0;
+            let errorCount = 0;
+            
+            // Process each meeting
+            for (const meetingData of uploadedFileData) {
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'text/plain',
+                        },
+                        body: JSON.stringify({
+                            action: 'addMeeting',
+                            data: meetingData
+                        })
+                    });
+
+                    const result = await response.json();
+                    
+                    if (result.status === 'success') {
+                        successCount++;
+                    } else {
+                        console.error('Error adding meeting:', result.message);
+                        errorCount++;
+                    }
+                } catch (error) {
+                    console.error('Error processing meeting:', error);
+                    errorCount++;
+                }
+            }
+            
+            // Show results
+            if (errorCount === 0) {
+                alert(`Successfully added ${successCount} meeting(s)!`);
+            } else {
+                alert(`Added ${successCount} meeting(s) successfully. ${errorCount} failed.`);
+            }
+            
+            // Reset and close
+            processBtn.textContent = originalText;
+            processBtn.disabled = false;
+            processBtn.style.display = 'none';
+            uploadedFileData = null;
+            
+            // Reload meetings and close modal
+            loadMeetings();
+            closeModal('addMeetingModal');
+        }
+
+        // NEW HELPER FUNCTIONS FOR ICS PARSING
+
+        // Helper function to read file as text
+        function readFileAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(e);
+                reader.readAsText(file);
+            });
+        }
+
+        // Parse ICS file content
+        function parseICSFile(icsContent) {
+            const meetings = [];
+            const events = icsContent.split('BEGIN:VEVENT');
+            
+            for (let i = 1; i < events.length; i++) { // Skip first split which is before any VEVENT
+                const eventContent = events[i];
+                const meeting = parseICSEvent(eventContent);
+                if (meeting) {
+                    meetings.push(meeting);
+                }
+            }
+            
+            return meetings;
+        }
+
+        // Parse individual ICS event
+        function parseICSEvent(eventContent) {
+            const lines = eventContent.split('\n').map(line => line.trim()).filter(line => line);
+            const eventData = {};
+            
+            // Parse each line
+            for (const line of lines) {
+                if (line.startsWith('DTSTART:')) {
+                    eventData.dtstart = line.substring(8);
+                } else if (line.startsWith('SUMMARY:')) {
+                    eventData.summary = line.substring(8);
+                } else if (line.startsWith('LOCATION:')) {
+                    eventData.location = line.substring(9);
+                }
+            }
+            
+            // Extract required fields
+            if (!eventData.dtstart || !eventData.summary) {
+                console.warn('Missing required fields in ICS event');
+                return null;
+            }
+            
+            // Parse DTSTART (format: 20250731T110100)
+            const dateTimeMatch = eventData.dtstart.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/);
+            if (!dateTimeMatch) {
+                console.warn('Invalid DTSTART format:', eventData.dtstart);
+                return null;
+            }
+            
+            const [, year, month, day, hour, minute, second] = dateTimeMatch;
+            
+            // Create date for Bid Open Date (YYYY-MM-DD format)
+            const bidOpenDate = `${year}-${month}-${day}`;
+            
+            // Create time in the 1899-based format used by the system
+            const timeDate = new Date('1899-12-30');
+            timeDate.setHours(parseInt(hour), parseInt(minute), parseInt(second), 0);
+            const bidOpenTime = timeDate.toISOString();
+            
+            // Extract BID Source ID from SUMMARY (look for "Project ID XXXXXX")
+            const bidSourceIdMatch = eventData.summary.match(/Project ID (\d+)/);
+            const bidSourceId = bidSourceIdMatch ? bidSourceIdMatch[1] : String(Date.now());
+            
+            // Parse location
+            const locationData = parseLocation(eventData.location || '');
+            
+            // Extract project name from summary (everything before "Project ID")
+            const projectNameMatch = eventData.summary.match(/^(.+?)\s*\(Project ID/);
+            const projectName = projectNameMatch ? projectNameMatch[1].trim() : eventData.summary;
+            
+            return {
+                'BID Source ID': bidSourceId,
+                'Project Name': projectName,
+                'Bid Open Date': bidOpenDate,
+                'Bid Open Time': bidOpenTime,
+                'Bid Open Street': locationData.street,
+                'Bid Open City': locationData.city,
+                'Bid Open State': locationData.state,
+                'Bid Open Zip': locationData.zip,
+                'Project Description': '',
+                'Bid Project Info': eventData.summary
+            };
+        }
+
+        // Parse location string into components
+        function parseLocation(locationString) {
+            const locationData = {
+                street: '',
+                city: '',
+                state: '',
+                zip: ''
+            };
+            
+            if (!locationString) return locationData;
+            
+            // Common formats:
+            // "1350 W Hawley St, Mundelein IL. 60060"
+            // "Street Address, City, State Zip"
+            // "Street Address, City State Zip"
+            
+            try {
+                // Split by comma first
+                const parts = locationString.split(',').map(part => part.trim());
+                
+                if (parts.length >= 1) {
+                    locationData.street = parts[0];
+                }
+                
+                if (parts.length >= 2) {
+                    // Last part might contain city, state, and zip
+                    const lastPart = parts[parts.length - 1];
+                    
+                    // Look for zip code (5 digits at the end)
+                    const zipMatch = lastPart.match(/\b(\d{5})\b\s*$/);
+                    if (zipMatch) {
+                        locationData.zip = zipMatch[1];
+                        const withoutZip = lastPart.replace(/\s*\d{5}\s*$/, '').trim();
+                        
+                        // Split remaining by space to get city and state
+                        const cityStateParts = withoutZip.split(/\s+/);
+                        if (cityStateParts.length >= 2) {
+                            // Last part before zip should be state
+                            locationData.state = cityStateParts[cityStateParts.length - 1].replace(/\.$/, ''); // Remove trailing period
+                            // Everything else is city
+                            locationData.city = cityStateParts.slice(0, -1).join(' ');
+                        } else {
+                            locationData.city = withoutZip;
+                        }
+                    } else {
+                        // No zip found, try to split city and state
+                        const cityStateParts = lastPart.split(/\s+/);
+                        if (cityStateParts.length >= 2) {
+                            locationData.state = cityStateParts[cityStateParts.length - 1].replace(/\.$/, '');
+                            locationData.city = cityStateParts.slice(0, -1).join(' ');
+                        } else {
+                            locationData.city = lastPart;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Error parsing location:', locationString, error);
+                // Fallback: put entire location in street field
+                locationData.street = locationString;
+            }
+            
+            return locationData;
         }
 
         // Week view functionality
